@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת מימושים פסח</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .store-info {
+            text-align: left;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        button.secondary {
+            background: transparent;
+            color: #2563eb;
+            border: 1px solid currentColor;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .search-box input {
+            margin-bottom: 0;
+        }
+        .search-box button {
+            width: auto;
+        }
+        .customer-info {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .customer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .customer-grid.contact {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+        .error {
+            color: #dc2626;
+            margin-bottom: 10px;
+        }
+        .success {
+            color: #16a34a;
+            margin-bottom: 10px;
+        }
+        .login-form label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        .last-used {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .redemption-history {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .redemption-history th,
+        .redemption-history td {
+            padding: 8px;
+            text-align: right;
+            border-bottom: 1px solid #ddd;
+        }
+        .redemption-history th {
+            font-weight: 500;
+            color: #666;
+            text-align: right;
+        }
+        .admin-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .admin-buttons button {
+            width: auto;
+        }
+        #fileInput {
+            display: none;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div id="loginScreen" class="card">
+            <h2>כניסה למערכת</h2>
+            <div class="login-form">
+                <div>
+                  <input type="text" id="storeNameInput" placeholder="הכנס שם סניף...">
+                </div>
+                <div>
+                    <label>שם העובד</label>
+                    <input type="text" id="employeeNameInput" placeholder="הכנס שם עובד...">
+                </div>
+                <button onclick="handleLogin()">כניסה למערכת</button>
+            </div>
+        </div>
+
+        <div id="mainScreen" style="display: none;">
+            <div class="card">
+                <div class="header">
+                    <div>
+                        <h2>מערכת מימושים פסח</h2>
+                        <div id="currentTime" style="color: #666; font-size: 14px;"></div>
+                    </div>
+                    <div class="store-info">
+                        <div id="storeName" style="font-weight: 500;"></div>
+                        <div id="employeeName"></div>
+                    </div>
+                </div>
+                
+                <div id="error" class="error" style="display: none;"></div>
+                <div id="success" class="success" style="display: none;"></div>
+
+                <div class="search-box">
+                    <input type="text" id="customerIdInput" placeholder="חפש לפי מספר לקוח או טלפון...">
+                    <button onclick="handleSearch()">חפש</button>
+                </div>
+
+                <div id="customerInfo" style="display: none;">
+                    <div class="customer-info">
+                        <div class="customer-grid">
+                            <div>
+                                <div style="color: #666;">שם לקוח</div>
+                                <div id="customerName" style="font-weight: 500;"></div>
+                            </div>
+                            <div>
+                                <div style="color: #666;">סוג לקוח</div>
+                                <div id="customerType" style="font-weight: 500;"></div>
+                            </div>
+                            <div>
+                                <div style="color: #666;">יתרת פריטים</div>
+                                <div id="itemsBalance" style="font-weight: 500;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="customer-grid contact">
+                            <div>
+                                <div style="color: #666;">טלפון ראשי</div>
+                                <div id="customerPhone1"></div>
+                            </div>
+                            <div>
+                                <div style="color: #666;">טלפון נוסף</div>
+                                <div id="customerPhone2"></div>
+                            </div>
+                            <div>
+                                <div style="color: #666;">כתובת</div>
+                                <div id="customerAddress"></div>
+                            </div>
+                        </div>
+
+                        <button id="redeemButton" onclick="handleRedeem()">מימוש פריט</button>
+
+                        <div id="redemptionHistory">
+                            <h3>היסטוריית מימושים</h3>
+                            <table class="redemption-history">
+                                <thead>
+                                    <tr>
+                                        <th>תאריך</th>
+                                        <th>שעה</th>
+                                        <th>חנות</th>
+                                        <th>עובד</th>
+                                        <th>כמות</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="redemptionHistoryBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-buttons" style="display: none;" id="adminButtons">
+                <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(this)">
+                <button onclick="document.getElementById('fileInput').click()" class="secondary">
+                    העלאת קובץ לקוחות
+                </button>
+                <button onclick="exportToExcel()" class="secondary">
+                    ייצוא דוח מימושים
+                </button>
+                <button onclick="handleLogout()" class="secondary">
+                    החלפת משמרת
+                </button>
+            </div>
+            <div id="regularButtons" style="text-align: left;">
+                <button onclick="handleLogout()" class="secondary">
+                    החלפת משמרת
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // קונפיגורציה של Firebase
+        const FIREBASE_PROJECT = 'mishnat-123';
+        const FIRESTORE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents`;
+
+        // משתנים גלובליים
+        let currentCustomer = null;
+        let isProcessing = false;
+        let currentStore = '';
+        let currentEmployee = '';
+        let currentRedemptions = [];
+
+// הוסף כאן - קוד ניטור קריאות פיירסטור
+let firebaseReadCount = 0;
+let documentReadCount = 0;
+
+// פונקציה שעוטפת את כל הקריאות לפיירסטור
+async function trackedFirebaseFetch(url, options, description = '') {
+    firebaseReadCount++;
+    console.log(`Firebase API Call #${firebaseReadCount}: ${description || url}`);
+    
+    try {
+        const startTime = performance.now();
+        const response = await fetch(url, options);
+        const elapsedTime = Math.round(performance.now() - startTime);
+        const data = await response.json();
+        
+        // מנסה להעריך כמה מסמכים הוחזרו
+        let currentDocumentCount = 0;
+        if (Array.isArray(data)) {
+            // עבור שאילתות runQuery
+            currentDocumentCount = data.filter(item => item.document).length;
+            documentReadCount += currentDocumentCount;
+            console.log(`   📄 החזיר ${currentDocumentCount} מסמכים (${elapsedTime}ms)`);
+        } else if (data.documents && Array.isArray(data.documents)) {
+            // עבור שאילתות listDocuments
+            currentDocumentCount = data.documents.length;
+            documentReadCount += currentDocumentCount;
+            console.log(`   📄 החזיר ${currentDocumentCount} מסמכים (${elapsedTime}ms)`);
+        }
+        
+        console.log(`   📊 סה"כ: ${firebaseReadCount} קריאות API, ${documentReadCount} מסמכים שנקראו`);
+        
+        return data;
+    } catch (error) {
+        console.error(`   ❌ שגיאה בקריאה לפיירסטור:`, error);
+        throw error;
+    }
+}
+
+        // פונקציות עזר
+        function showMessage(message, type = 'error') {
+            const elementId = type === 'error' ? 'error' : 'success';
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.style.display = 'block';
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 3000);
+        }
+
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+
+        function showSuccess(message) {
+            showMessage(message, 'success');
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            return {
+                date: date.toLocaleDateString('he-IL'),
+                time: date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+            };
+        }
+
+        // עדכון שעון
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleString('he-IL', { 
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+        }
+
+        // בדיקת מנהל
+        function isAdmin(storeName, employeeName) {
+            return storeName.trim() === 'מנהל' && employeeName.trim() === '012020';
+        }
+
+        // פונקציות שמירת מידע להתחברות
+        function saveLoginCredentials(storeName, employeeName) {
+            localStorage.setItem('currentStore', storeName);
+            localStorage.setItem('currentEmployee', employeeName);
+        }
+
+        function loadSavedCredentials() {
+            const storeName = localStorage.getItem('currentStore');
+            const employeeName = localStorage.getItem('currentEmployee');
+            
+            if (storeName && employeeName) {
+                // אם יש נתונים שמורים, בצע התחברות אוטומטית
+                document.getElementById('storeNameInput').value = storeName;
+                document.getElementById('employeeNameInput').value = employeeName;
+                handleLogin();
+            }
+        }
+
+        // הגדרת פונקציות גלובליות - חשוב שזה יהיה בראש הסקריפט!
+        function handleLogin() {
+            const storeName = document.getElementById('storeNameInput').value.trim();
+            const employeeName = document.getElementById('employeeNameInput').value.trim();
+
+            if (!storeName || !employeeName) {
+                showError('נא למלא את כל השדות');
+                return;
+            }
+
+            currentStore = storeName;
+            currentEmployee = employeeName;
+
+            document.getElementById('storeName').textContent = storeName;
+            document.getElementById('employeeName').textContent = employeeName;
+            
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainScreen').style.display = 'block';
+
+            // קוד חדש: שמירת פרטי ההתחברות
+            saveLoginCredentials(storeName, employeeName);
+
+            // קוד חדש שמציג/מסתיר כפתורים
+            const adminButtons = document.getElementById('adminButtons');
+            const regularButtons = document.getElementById('regularButtons');
+            if (isAdmin(storeName, employeeName)) {
+                adminButtons.style.display = 'flex';
+                regularButtons.style.display = 'none';
+            } else {
+                adminButtons.style.display = 'none';
+                regularButtons.style.display = 'block';
+            }
+
+            // התחלת עדכון שעון
+            updateClock();
+            setInterval(updateClock, 60000);
+        }
+
+        // חיפוש לקוח - פונקציה מעודכנת
+        async function handleSearch() {
+            if (isProcessing) return;
+            
+            const searchTerm = document.getElementById('customerIdInput').value.trim();
+            if (!searchTerm) {
+                showError('נא להזין מספר לקוח או טלפון');
+                return;
+            }
+
+            isProcessing = true;
+            try {
+                // שאילתה ישירה לפי כל השדות המזהים בבת אחת
+                const structuredQuery = {
+                    structuredQuery: {
+                        from: [{ collectionId: 'customers' }],
+                        where: {
+                            compositeFilter: {
+                                op: 'OR',
+                                filters: [
+                                    {
+                                        fieldFilter: {
+                                            field: { fieldPath: 'id' },
+                                            op: 'EQUAL',
+                                            value: { stringValue: searchTerm }
+                                        }
+                                    },
+                                    {
+                                        fieldFilter: {
+                                            field: { fieldPath: 'phone1' },
+                                            op: 'EQUAL',
+                                            value: { stringValue: searchTerm }
+                                        }
+                                    },
+                                    {
+                                        fieldFilter: {
+                                            field: { fieldPath: 'phone2' },
+                                            op: 'EQUAL',
+                                            value: { stringValue: searchTerm }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                };
+
+                // שליחת השאילתה
+                let response = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(structuredQuery)
+                });
+                
+                let results = await response.json();
+                
+                // בדיקה אם נמצאו תוצאות
+                const validResults = results.filter(result => result.document);
+                
+                if (validResults.length === 0) {
+                    showError('לקוח לא נמצא');
+                    document.getElementById('customerInfo').style.display = 'none';
+                    return;
+                }
+                
+                const customer = validResults[0].document;
+                
+                // מעדכן את המשתנה הגלובלי עם פרטי הלקוח
+                currentCustomer = {
+                    id: customer.name.split('/').pop(),
+                    name: customer.fields.name.stringValue,
+                    totalItems: parseInt(customer.fields.totalItems.integerValue || '0'),
+                    usedItems: parseInt(customer.fields.usedItems.integerValue || '0'),
+                    phone1: customer.fields?.phone1?.stringValue || '',
+                    phone2: customer.fields?.phone2?.stringValue || '',
+                    address: customer.fields?.address?.stringValue || '',
+                    lastUsed: customer.fields.lastUsed?.timestampValue,
+                    customerType: customer.fields.customerType?.stringValue || 'רגיל'
+                };
+
+                // חיפוש ישיר של מימושים של הלקוח
+                const redemptionsQuery = {
+                    structuredQuery: {
+                        from: [{ collectionId: 'redemptions' }],
+                        where: {
+                            fieldFilter: {
+                                field: { fieldPath: 'customerId' },
+                                op: 'EQUAL',
+                                value: { stringValue: currentCustomer.id }
+                            }
+                        }
+                    }
+                };
+                
+                response = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(redemptionsQuery)
+                });
+                
+                results = await response.json();
+                
+                currentRedemptions = results
+                    .filter(result => result.document)
+                    .map(result => result.document);
+                
+                displayCustomerInfo(currentCustomer, currentRedemptions);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('שגיאה בחיפוש הלקוח');
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        // הצגת פרטי לקוח
+        function displayCustomerInfo(customer, redemptions = []) {
+            document.getElementById('customerName').textContent = customer.name;
+            document.getElementById('customerType').textContent = customer.customerType || 'רגיל';
+            document.getElementById('itemsBalance').textContent = 
+                `${customer.totalItems - customer.usedItems} מתוך ${customer.totalItems}`;
+            document.getElementById('customerPhone1').textContent = customer.phone1 || '-';
+            document.getElementById('customerPhone2').textContent = customer.phone2 || '-';
+            document.getElementById('customerAddress').textContent = customer.address || '-';
+
+            // הצגת היסטוריית מימושים
+            const historyBody = document.getElementById('redemptionHistoryBody');
+            historyBody.innerHTML = '';
+
+            redemptions.forEach(redemption => {
+                const { date, time } = formatDate(redemption.fields.timestamp.timestampValue);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${date}</td>
+                    <td>${time}</td>
+                    <td>${redemption.fields.storeName.stringValue}</td>
+                    <td>${redemption.fields.employeeName.stringValue}</td>
+                    <td>1</td>
+                `;
+                historyBody.appendChild(row);
+            });
+
+            document.getElementById('customerInfo').style.display = 'block';
+            document.getElementById('redeemButton').disabled = 
+                customer.usedItems >= customer.totalItems;
+        }
+
+        // מימוש פריט
+        async function handleRedeem() {
+            if (isProcessing || !currentCustomer) return;
+            
+            if (currentCustomer.usedItems >= currentCustomer.totalItems) {
+                showError('לא נותרו פריטים למימוש');
+                return;
+            }
+
+            isProcessing = true;
+            const redeemButton = document.getElementById('redeemButton');
+            redeemButton.textContent = 'מעבד...';
+            redeemButton.disabled = true;
+
+            try {
+                // בדיקת מצב עדכני של הלקוח
+                const checkResponse = await fetch(`${FIRESTORE_URL}/customers/${currentCustomer.id}`);
+                const checkData = await checkResponse.json();
+                const currentUsedItems = parseInt(checkData.fields.usedItems.integerValue || '0');
+                
+                if (currentUsedItems >= currentCustomer.totalItems) {
+                    throw new Error('לא נותרו פריטים למימוש');
+                }
+
+                // עדכון נתוני הלקוח
+                const updateDoc = {
+                    fields: {
+                        usedItems: { integerValue: currentUsedItems + 1 },
+                        lastUsed: { timestampValue: new Date().toISOString() }
+                    }
+                };
+
+                const updateResponse = await fetch(
+                    `${FIRESTORE_URL}/customers/${currentCustomer.id}?updateMask.fieldPaths=usedItems&updateMask.fieldPaths=lastUsed`,
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updateDoc)
+                    }
+                );
+
+                if (!updateResponse.ok) {
+                    throw new Error('שגיאה בעדכון נתוני הלקוח');
+                }
+
+                // הוספת רשומת מימוש
+                const redemptionDoc = {
+                    fields: {
+                        customerId: { stringValue: currentCustomer.id.split('/').pop() },
+                        customerName: { stringValue: currentCustomer.name },
+                        storeName: { stringValue: currentStore },
+                        employeeName: { stringValue: currentEmployee },
+                        timestamp: { timestampValue: new Date().toISOString() },
+                        quantity: { integerValue: 1 }
+                    }
+                };
+
+                const redemptionResponse = await fetch(
+                    `${FIRESTORE_URL}/redemptions`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(redemptionDoc)
+                    }
+                );
+
+                if (!redemptionResponse.ok) {
+                    throw new Error('שגיאה בשמירת המימוש');
+                }
+
+                // עדכון המשתנה הגלובלי
+                currentCustomer.usedItems = currentUsedItems + 1;
+                currentCustomer.lastUsed = new Date().toISOString();
+
+                // יצירת אובייקט המימוש החדש
+                const newRedemption = {
+                    fields: {
+                        timestamp: { timestampValue: new Date().toISOString() },
+                        storeName: { stringValue: currentStore },
+                        employeeName: { stringValue: currentEmployee },
+                        customerId: { stringValue: currentCustomer.id },
+                        customerName: { stringValue: currentCustomer.name },
+                        quantity: { integerValue: "1" }
+                    }
+                };
+
+                // הוספה למערך המימושים הקיים
+                currentRedemptions.unshift(newRedemption);
+
+                // עדכון התצוגה של היתרה
+                document.getElementById('itemsBalance').textContent = 
+                    `${currentCustomer.totalItems - currentCustomer.usedItems} מתוך ${currentCustomer.totalItems}`;
+
+                // עדכון טבלת ההיסטוריה
+                const historyBody = document.getElementById('redemptionHistoryBody');
+                const newRow = document.createElement('tr');
+                const now = new Date();
+                const { date, time } = formatDate(now.toISOString());
+
+                newRow.innerHTML = `
+                    <td>${date}</td>
+                    <td>${time}</td>
+                    <td>${currentStore}</td>
+                    <td>${currentEmployee}</td>
+                    <td>1</td>
+                `;
+
+                // הוספת השורה החדשה בראש הטבלה
+                historyBody.insertBefore(newRow, historyBody.firstChild);
+
+                // עדכון כפתור המימוש
+                redeemButton.disabled = currentCustomer.usedItems >= currentCustomer.totalItems;
+
+                showSuccess('המימוש בוצע בהצלחה');
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message || 'שגיאה במימוש הפריט');
+            } finally {
+                isProcessing = false;
+                redeemButton.textContent = 'מימוש פריט';
+                redeemButton.disabled = false;
+            }
+        }
+
+        // העלאת קובץ אקסל - פונקציה מעודכנת
+        async function handleFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const customers = XLSX.utils.sheet_to_json(firstSheet, { 
+                            header: ['id', 'name', 'address', 'totalItems', 'phone1', 'phone2', 'customerType'] 
+                        });                        
+                        // דילוג על שורת הכותרות
+                        customers.shift();
+
+                        let updatedCount = 0;
+                        let newCount = 0;
+                        let errorCount = 0;
+                        
+                        // הצגת פרוגרס למשתמש
+                        showSuccess(`מעבד ${customers.length} לקוחות...`);
+                        
+                        // מקבצים את הלקוחות לקבוצות קטנות לעיבוד
+                        const BATCH_SIZE = 20; // כמות לקוחות לעיבוד בכל פעם
+                        const batches = [];
+                        
+                        for (let i = 0; i < customers.length; i += BATCH_SIZE) {
+                            batches.push(customers.slice(i, i + BATCH_SIZE));
+                        }
+                        
+                        // עיבוד הקבוצות בזו אחר זו
+                        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+                            const batch = batches[batchIndex];
+                            
+                            // מציג התקדמות
+                            const progress = Math.round((batchIndex / batches.length) * 100);
+                            showSuccess(`מעבד לקוחות... ${progress}%`);
+                            
+                           // מעבד כל לקוח בקבוצה
+                            for (const customer of batch) {
+                                try {
+                                    const customerId = customer.id.toString();
+                                    
+                                    // בדיקה אם הלקוח קיים באמצעות שאילתה ממוקדת
+                                    const query = {
+                                        structuredQuery: {
+                                            from: [{ collectionId: 'customers' }],
+                                            where: {
+                                                fieldFilter: {
+                                                    field: { fieldPath: 'id' },
+                                                    op: 'EQUAL',
+                                                    value: { stringValue: customerId }
+                                                }
+                                            }
+                                        }
+                                    };
+                                    
+                                    const response = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(query)
+                                    });
+                                    
+                                    const results = await response.json();
+                                    const existingCustomer = results.filter(result => result.document)[0]?.document || null;
+
+                                    if (existingCustomer) {
+                                        // הלקוח קיים - עדכון
+                                        const existingId = existingCustomer.name.split('/').pop();
+                                        const currentTotalItems = parseInt(existingCustomer.fields.totalItems.integerValue || '0');
+                                        const additionalItems = parseInt(customer.totalItems) || 0;
+                                        const newTotalItems = currentTotalItems + additionalItems;
+                                        
+                                        const updateDoc = {
+                                            fields: {
+                                                totalItems: { integerValue: newTotalItems.toString() }
+                                                // אפשר להוסיף כאן עדכונים לשדות אחרים אם צריך
+                                            }
+                                        };
+                                        
+                                        const updateResponse = await fetch(
+                                            `${FIRESTORE_URL}/customers/${existingId}?updateMask.fieldPaths=totalItems`,
+                                            {
+                                                method: 'PATCH',
+                                                headers: {
+                                                    'Content-Type': 'application/json'
+                                                },
+                                                body: JSON.stringify(updateDoc)  // תיקון: שימוש ב-updateDoc במקום customerDoc
+                                            }
+                                        );
+                                        
+                                        if (updateResponse.ok) {  // תיקון: בדיקת updateResponse.ok במקום createResponse.ok
+                                            updatedCount++;
+                                        } else {
+                                            errorCount++;
+                                        }
+                                    } else {
+                                        // לקוח חדש - הוספה
+                                        const customerDoc = {
+                                            fields: {
+                                                id: { stringValue: customerId },
+                                                name: { stringValue: customer.name || '' },
+                                                address: { stringValue: customer.address || '' },
+                                                totalItems: { integerValue: (customer.totalItems || 0).toString() },
+                                                phone1: { stringValue: customer.phone1?.toString() || '' },
+                                                phone2: { stringValue: customer.phone2?.toString() || '' },
+                                                customerType: { stringValue: customer.customerType || 'רגיל' },
+                                                usedItems: { integerValue: '0' }
+                                            }
+                                        };
+
+                                        const createResponse = await fetch(
+                                            `${FIRESTORE_URL}/customers`,
+                                            {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json'
+                                                },
+                                                body: JSON.stringify(customerDoc)
+                                            }
+                                        );
+                                        
+                                        if (createResponse.ok) {
+                                            newCount++;
+                                        } else {
+                                            errorCount++;
+                                        }
+                                    }
+                                    
+                                    // המתנה קצרה בין בקשות כדי לא להעמיס על השרת
+                                    await new Promise(resolve => setTimeout(resolve, 100));
+                                    
+                                } catch (error) {
+                                    console.error('Error processing customer:', customer.id, error);
+                                    errorCount++;
+                                }
+                            }
+                        }
+
+                        // מציג סיכום
+                        showSuccess(`נקלטו ${newCount} לקוחות חדשים ועודכנו ${updatedCount} לקוחות קיימים. ${errorCount} שגיאות.`);
+                        
+                    } catch (error) {
+                        console.error('Error processing file:', error);
+                        showError('שגיאה בעיבוד הקובץ');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } catch (error) {
+                console.error('Error reading file:', error);
+                showError('שגיאה בקריאת הקובץ');
+            }
+        }
+
+        // ייצוא לאקסל - פונקציה מעודכנת
+     async function exportToExcel() {
+    try {
+        // איפוס מוני הניטור בתחילת התהליך
+        firebaseReadCount = 0;
+        documentReadCount = 0;
+        console.log("🔍 מתחיל תהליך ייצוא דוח...");
+        
+        showSuccess('מכין דוח... אנא המתן');
+                
+               // שאילתה לקבלת כל הלקוחות (ממוינים לפי מזהה)
+const customersQuery = {
+    structuredQuery: {
+        from: [{ collectionId: 'customers' }],
+        orderBy: [{ field: { fieldPath: "__name__" } }],
+        limit: 1000
+    }
+};
+                
+console.log("📥 מושך נתוני לקוחות...");
+let results = await trackedFirebaseFetch(`${FIRESTORE_URL}:runQuery`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(customersQuery)
+}, "שאילתת לקוחות ראשונה");
+                let customers = results
+                    .filter(result => result.document)
+                    .map(result => result.document);
+                
+// בדיקה אם יש צורך בדפדוף נוסף (אם קיבלנו בדיוק את הגבול המקסימלי)
+if (customers.length === 1000) {
+    console.log("📥 נראה שיש עוד לקוחות, מנסה למשוך באמצעות startAfter");
+    
+    // שימוש ב-startAfter במקום pageToken
+    const lastCustomerId = customers[customers.length - 1].name.split('/').pop();
+    
+    // שאילתה עם startAfter
+    const nextPageQuery = {
+        structuredQuery: {
+            from: [{ collectionId: 'customers' }],
+            orderBy: [{ field: { fieldPath: "__name__" } }],
+            startAt: {
+                values: [{ referenceValue: `projects/${FIREBASE_PROJECT}/databases/(default)/documents/customers/${lastCustomerId}` }]
+            },
+            limit: 1000
+        }
+    };
+    
+    try {
+        console.log("📥 ממשיך למשוך לקוחות נוספים...");
+        const moreResults = await trackedFirebaseFetch(`${FIRESTORE_URL}:runQuery`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(nextPageQuery)
+        }, "המשך שאילתת לקוחות");
+        
+        if (moreResults && moreResults.length > 0) {
+            const moreCustomers = moreResults
+                .filter(result => result.document)
+                .map(result => result.document);
+                
+            // מסיר את הלקוח הראשון שכבר קיים במערך הקודם
+            if (moreCustomers.length > 0 && moreCustomers[0].name === customers[customers.length - 1].name) {
+                moreCustomers.shift();
+            }
+            
+            customers = [...customers, ...moreCustomers];
+        }
+    } catch (error) {
+        console.error("שגיאה במשיכת לקוחות נוספים:", error);
+    }
+}
+                
+               // שאילתה לקבלת כל המימושים (ממוינים לפי מזהה)
+const redemptionsQuery = {
+    structuredQuery: {
+        from: [{ collectionId: 'redemptions' }],
+        orderBy: [{ field: { fieldPath: "__name__" } }],
+        limit: 1000
+    }
+};
+console.log("📥 מושך נתוני מימושים...");
+results = await trackedFirebaseFetch(`${FIRESTORE_URL}:runQuery`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(redemptionsQuery)
+}, "שאילתת מימושים ראשונה");
+                let redemptions = results
+                    .filter(result => result.document)
+                    .map(result => result.document);
+                
+// בדיקה אם יש צורך בדפדוף נוסף
+if (redemptions.length === 1000) {
+    console.log("📥 נראה שיש עוד מימושים, מנסה למשוך באמצעות startAfter");
+    
+    // שימוש ב-startAfter במקום pageToken
+    const lastRedemptionId = redemptions[redemptions.length - 1].name.split('/').pop();
+    
+    // שאילתה עם startAfter
+    const nextPageQuery = {
+        structuredQuery: {
+            from: [{ collectionId: 'redemptions' }],
+            orderBy: [{ field: { fieldPath: "__name__" } }],
+            startAt: {
+                values: [{ referenceValue: `projects/${FIREBASE_PROJECT}/databases/(default)/documents/redemptions/${lastRedemptionId}` }]
+            },
+            limit: 1000
+        }
+    };
+    
+    try {
+        console.log("📥 ממשיך למשוך מימושים נוספים...");
+        const moreResults = await trackedFirebaseFetch(`${FIRESTORE_URL}:runQuery`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(nextPageQuery)
+        }, "המשך שאילתת מימושים");
+        
+        if (moreResults && moreResults.length > 0) {
+            const moreRedemptions = moreResults
+                .filter(result => result.document)
+                .map(result => result.document);
+                
+         // מסיר את המימוש הראשון שכבר קיים במערך הקודם
+            if (moreRedemptions.length > 0 && moreRedemptions[0].name === redemptions[redemptions.length - 1].name) {
+                moreRedemptions.shift();
+            }
+            
+            redemptions = [...redemptions, ...moreRedemptions];
+        }
+    } catch (error) {
+        console.error("שגיאה במשיכת מימושים נוספים:", error);
+    }
+}
+
+// בדיקה שהמידע תקין
+if (customers.length === 0) {
+    console.error("❌ לא נמצאו לקוחות - יתכן שיש בעיה בקריאת הנתונים");
+    showError("לא נמצאו לקוחות בבסיס הנתונים או שאירעה שגיאה בהבאת הנתונים");
+    return;
+}
+console.log(`🔍 סיום משיכת נתונים: ${firebaseReadCount} קריאות API, ${documentReadCount} מסמכים`);
+console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-${redemptions.length} מימושים`);
+                // סגנונות
+                const headerStyle = {
+                    font: {
+                        name: 'Arial',
+                        sz: 12,
+                        bold: true,
+                        color: { rgb: "FFFFFF" }
+                    },
+                    fill: {
+                        patternType: "solid",
+                        fgColor: { rgb: "4472C4" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center",
+                        wrapText: true
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+
+                const dataStyle = {
+                    font: {
+                        name: 'Arial',
+                        sz: 11
+                    },
+                    alignment: {
+                        horizontal: "right",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+
+                const titleStyle = {
+                    font: {
+                        name: 'Arial',
+                        sz: 14,
+                        bold: true,
+                        color: { rgb: "000000" }
+                    },
+                    fill: {
+                        patternType: "solid",
+                        fgColor: { rgb: "E2EFDA" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+
+                // עיבוד נתונים מפורט
+                const detailedData = [];
+                
+                // הוספת שורת כותרת ידנית עם סגנון
+                const headers = ['מספר לקוח', 'שם לקוח', 'סוג לקוח', 'סך פריטים', 'פריטים שמומשו', 'יתרה', 'תאריך מימוש', 'שעת מימוש', 'עובד', 'חנות'];
+                const headerRow = {};
+                
+                headers.forEach((header, idx) => {
+                    headerRow[XLSX.utils.encode_cell({r: 0, c: idx})] = {v: header, s: headerStyle};
+                });
+                
+                detailedData.push(headerRow);
+
+                // עיבוד נתוני הלקוחות והמימושים
+                let rowIndex = 1;
+                customers.forEach(customer => {
+                    const customerId = customer.fields.id?.stringValue || 'לא ידוע';
+                    const customerName = customer.fields.name?.stringValue || 'לא ידוע';
+                    const customerType = customer.fields.customerType?.stringValue || 'רגיל';
+                    const totalItems = parseInt(customer.fields?.totalItems?.integerValue || '0');
+                    const usedItems = parseInt(customer.fields?.usedItems?.integerValue || '0');
+                    const balance = totalItems - usedItems;
+
+                    // סינון מימושים של לקוח זה
+                    const customerRedemptions = redemptions.filter(r => 
+                        r.fields?.customerId?.stringValue === customer.name.split('/').pop()
+                    );
+
+                    if (customerRedemptions.length === 0) {
+                        // אם אין מימושים, הוסף שורה אחת
+                        const row = {};
+                        [customerId, customerName, customerType, totalItems, usedItems, balance, '-', '-', '-', '-'].forEach((value, idx) => {
+                            row[XLSX.utils.encode_cell({r: rowIndex, c: idx})] = {v: value, s: dataStyle};
+                        });
+                        detailedData.push(row);
+                        rowIndex++;
+                    } else {
+                        // עבור כל מימוש, הוסף שורה
+                        customerRedemptions.forEach(redemption => {
+                            const timestamp = redemption.fields?.timestamp?.timestampValue;
+                            const date = timestamp ? new Date(timestamp).toLocaleDateString('he-IL') : 'לא ידוע';
+                            const time = timestamp ? new Date(timestamp).toLocaleTimeString('he-IL', {hour: '2-digit', minute: '2-digit'}) : 'לא ידוע';
+                            const employeeName = redemption.fields?.employeeName?.stringValue || 'לא ידוע';
+                            const storeName = redemption.fields?.storeName?.stringValue || 'לא ידוע';
+
+                            const row = {};
+                            [customerId, customerName, customerType, totalItems, usedItems, balance, date, time, employeeName, storeName].forEach((value, idx) => {
+                                row[XLSX.utils.encode_cell({r: rowIndex, c: idx})] = {v: value, s: dataStyle};
+                            });
+                            detailedData.push(row);
+                            rowIndex++;
+                        });
+                    }
+                });
+
+                // סטטיסטיקה כללית
+                const generalStats = {
+                    'סך כל הפריטים': customers.reduce((sum, customer) => 
+                        sum + parseInt(customer.fields?.totalItems?.integerValue || '0'), 0),
+                    'סך כל המימושים': redemptions.length,
+                    'יתרה למימוש': customers.reduce((sum, customer) => {
+                        const total = parseInt(customer.fields?.totalItems?.integerValue || '0');
+                        const used = parseInt(customer.fields?.usedItems?.integerValue || '0');
+                        return sum + (total - used);
+                    }, 0)
+                };
+
+                // סטטיסטיקה לפי סוג לקוח
+                const customerTypeStats = customers.reduce((acc, customer) => {
+                    const customerType = customer.fields?.customerType?.stringValue || 'רגיל';
+                    const total = parseInt(customer.fields?.totalItems?.integerValue || '0');
+                    const used = parseInt(customer.fields?.usedItems?.integerValue || '0');
+                    const balance = total - used;
+
+                    if (!acc[customerType]) {
+                        acc[customerType] = {
+                            'סך כל הפריטים': 0,
+                            'פריטים שמומשו': 0,
+                            'יתרה למימוש': 0
+                        };
+                    }
+
+                    acc[customerType]['סך כל הפריטים'] += total;
+                    acc[customerType]['פריטים שמומשו'] += used;
+                    acc[customerType]['יתרה למימוש'] += balance;
+
+                    return acc;
+                }, {});
+
+                // סטטיסטיקה לפי חנות
+                const storeStats = redemptions.reduce((acc, redemption) => {
+                    const storeName = redemption.fields?.storeName?.stringValue || 'לא ידוע';
+                    
+                    if (!acc[storeName]) {
+                        acc[storeName] = {
+                            'מספר מימושים': 0,
+                            'סה"כ פריטים שמומשו': 0
+                        };
+                    }
+                    
+                    acc[storeName]['מספר מימושים']++;
+                    acc[storeName]['סה"כ פריטים שמומשו'] += 
+                        parseInt(redemption.fields?.quantity?.integerValue || '1');
+                    
+                    return acc;
+                }, {});
+
+                // גיליון סטטיסטיקה
+                const statisticsData = [
+                    // כותרת וסטטיסטיקה כללית
+                    [{ v: 'סטטיסטיקה כללית', s: titleStyle }],
+                    ...Object.entries(generalStats).map(([key, value]) => [
+                        { v: key, s: dataStyle },
+                        { v: value, s: dataStyle }
+                    ]),
+                    
+                    [{ v: '', s: dataStyle }],
+                    
+                    // כותרת וסטטיסטיקה לפי סוג לקוח
+                    [{ v: 'סטטיסטיקה לפי סוג לקוח', s: titleStyle }],
+                    ...Object.entries(customerTypeStats).flatMap(([type, stats]) => [
+                        [{ v: `סוג לקוח: ${type}`, s: headerStyle }],
+                        ...Object.entries(stats).map(([key, value]) => [
+                            { v: key, s: dataStyle },
+                            { v: value, s: dataStyle }
+                        ]),
+                        [{ v: '', s: dataStyle }]
+                    ]),
+                    
+                    // כותרת וסטטיסטיקה לפי חנות
+                    [{ v: 'סטטיסטיקה לפי חנות', s: titleStyle }],
+                    ...Object.entries(storeStats).flatMap(([storeName, stats]) => [
+                        [{ v: `חנות: ${storeName}`, s: headerStyle }],
+                        ...Object.entries(stats).map(([key, value]) => [
+                            { v: key, s: dataStyle },
+                            { v: value, s: dataStyle }
+                        ]),
+                        [{ v: '', s: dataStyle }]
+                    ])
+                ];
+
+                // יצירת קובץ אקסל
+                const wb = XLSX.utils.book_new();
+
+                // גיליון נתונים מפורט
+                const ws1 = XLSX.utils.aoa_to_sheet([]);
+                ws1['!ref'] = XLSX.utils.encode_range({s: {r: 0, c: 0}, e: {r: rowIndex-1, c: headers.length-1}});
+                
+                // הוספת כל הנתונים לגיליון
+                detailedData.forEach(row => {
+                    Object.keys(row).forEach(cell => {
+                        ws1[cell] = row[cell];
+                    });
+                });
+
+                // הגדרת רוחב עמודות
+                ws1['!cols'] = [
+                    { width: 12 },  // מספר לקוח
+                    { width: 20 },  // שם לקוח
+                    { width: 15 },  // סוג לקוח
+                    { width: 10 },  // סך פריטים
+                    { width: 12 },  // פריטים שמומשו
+                    { width: 10 },  // יתרה
+                    { width: 15 },  // תאריך מימוש
+                    { width: 12 },  // שעת מימוש
+                    { width: 15 },  // עובד
+                    { width: 15 }   // חנות
+                ];
+
+                // הגדרת גובה שורת כותרת
+                ws1['!rows'] = [{ hpt: 30 }]; // גובה שורת כותרת
+
+                XLSX.utils.book_append_sheet(wb, ws1, "דוח מפורט");
+
+                const ws2 = XLSX.utils.aoa_to_sheet(statisticsData);
+
+                // הגדרת רוחב עמודות בגיליון סטטיסטיקה
+                ws2['!cols'] = [
+                    { width: 25 },  // מדד
+                    { width: 15 }   // ערך
+                ];
+
+                XLSX.utils.book_append_sheet(wb, ws2, "סטטיסטיקה");
+
+                // שמירת הקובץ
+                XLSX.writeFile(wb, `דוח_מימושים_${new Date().toLocaleDateString('he-IL')}.xlsx`);
+
+                showSuccess('הדוח יוצא בהצלחה');
+            } catch (error) {
+                console.error('Error exporting to Excel:', error);
+                showError('שגיאה בייצוא הדוח');
+            }
+        }
+
+        // התנתקות / החלפת משמרת
+        function handleLogout() {
+            localStorage.removeItem('currentStore');
+            localStorage.removeItem('currentEmployee');
+            currentCustomer = null;
+            currentStore = '';
+            currentEmployee = '';
+            currentRedemptions = [];
+            document.getElementById('customerIdInput').value = '';
+            document.getElementById('customerInfo').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('mainScreen').style.display = 'none';
+        }
+
+        // בדיקת התחברות בטעינת הדף
+        window.onload = function() {
+            // נסה לטעון נתונים שמורים
+            loadSavedCredentials();
+        };
+
+        // הגדרת הפונקציות כגלובליות בחלון
+        window.handleLogin = handleLogin;
+        window.handleSearch = handleSearch;
+        window.handleRedeem = handleRedeem;
+        window.handleFileUpload = handleFileUpload;
+        window.exportToExcel = exportToExcel;
+        window.handleLogout = handleLogout;
+    </script>
+</body>
+</html>
