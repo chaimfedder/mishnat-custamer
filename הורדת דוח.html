@@ -129,6 +129,58 @@
         #fileInput {
             display: none;
         }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .modal h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .modal label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 14px;
+        }
+        .modal select {
+            margin-bottom: 15px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            flex: 1;
+        }
+        button.danger {
+            background: #dc2626;
+            color: white;
+            border: none;
+        }
+        button.danger:hover {
+            background: #b91c1c;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
@@ -223,13 +275,22 @@
                 </div>
             </div>
 
-            <div class="admin-buttons" style="display: none;" id="adminButtons">
+            <div class="admin-buttons" style="display: none; flex-wrap: wrap;" id="adminButtons">
                 <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(this)">
                 <button onclick="document.getElementById('fileInput').click()" class="secondary">
                     העלאת קובץ לקוחות
                 </button>
                 <button onclick="exportToExcel()" class="secondary">
                     ייצוא דוח מימושים
+                </button>
+                <button onclick="openFilterModal('export')" class="secondary">
+                    ייצוא רשימת לקוחות
+                </button>
+                <button onclick="openFilterModal('delete')" class="danger">
+                    מחיקת לקוחות מסוננת
+                </button>
+                <button onclick="deleteAllData()" class="danger">
+                    מחק הכל
                 </button>
                 <button onclick="handleLogout()" class="secondary">
                     החלפת משמרת
@@ -239,6 +300,28 @@
                 <button onclick="handleLogout()" class="secondary">
                     החלפת משמרת
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- חלון סינון -->
+    <div id="filterModal" class="modal-overlay">
+        <div class="modal">
+            <h3 id="filterModalTitle">סינון</h3>
+            <label>סיווג לקוח</label>
+            <select id="filterCustomerType">
+                <option value="all">הכל</option>
+            </select>
+            <label>סטטוס מימוש</label>
+            <select id="filterRedemptionStatus">
+                <option value="all">הכל</option>
+                <option value="redeemed">מימשו</option>
+                <option value="not_redeemed">לא מימשו</option>
+                <option value="partial">מימשו חלקית</option>
+            </select>
+            <div class="modal-buttons">
+                <button id="filterActionBtn" onclick="executeFilterAction()">בצע</button>
+                <button class="secondary" onclick="closeFilterModal()">ביטול</button>
             </div>
         </div>
     </div>
@@ -1266,6 +1349,386 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
             loadSavedCredentials();
         };
 
+        // משתנה גלובלי לשמירת סוג הפעולה (export / delete)
+        let currentFilterAction = '';
+
+        // פונקציה למשיכת כל הלקוחות עם דפדוף
+        async function fetchAllCustomers() {
+            const customersQuery = {
+                structuredQuery: {
+                    from: [{ collectionId: 'customers' }],
+                    orderBy: [{ field: { fieldPath: "__name__" } }],
+                    limit: 1000
+                }
+            };
+
+            let response = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(customersQuery)
+            });
+            let results = await response.json();
+            let customers = results.filter(r => r.document).map(r => r.document);
+
+            if (customers.length === 1000) {
+                const lastId = customers[customers.length - 1].name.split('/').pop();
+                const nextQuery = {
+                    structuredQuery: {
+                        from: [{ collectionId: 'customers' }],
+                        orderBy: [{ field: { fieldPath: "__name__" } }],
+                        startAt: {
+                            values: [{ referenceValue: `projects/${FIREBASE_PROJECT}/databases/(default)/documents/customers/${lastId}` }]
+                        },
+                        limit: 1000
+                    }
+                };
+                const moreResponse = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(nextQuery)
+                });
+                const moreResults = await moreResponse.json();
+                const moreCustomers = moreResults.filter(r => r.document).map(r => r.document);
+                if (moreCustomers.length > 0 && moreCustomers[0].name === customers[customers.length - 1].name) {
+                    moreCustomers.shift();
+                }
+                customers = [...customers, ...moreCustomers];
+            }
+            return customers;
+        }
+
+        // פתיחת חלון סינון
+        async function openFilterModal(action) {
+            currentFilterAction = action;
+            const modal = document.getElementById('filterModal');
+            const title = document.getElementById('filterModalTitle');
+            const actionBtn = document.getElementById('filterActionBtn');
+
+            if (action === 'export') {
+                title.textContent = 'ייצוא רשימת לקוחות - סינון';
+                actionBtn.textContent = 'ייצא';
+                actionBtn.className = '';
+            } else {
+                title.textContent = 'מחיקת לקוחות - סינון';
+                actionBtn.textContent = 'מחק';
+                actionBtn.className = 'danger';
+            }
+
+            // טעינת סיווגים קיימים
+            try {
+                showSuccess('טוען סיווגים...');
+                const customers = await fetchAllCustomers();
+                const types = new Set();
+                customers.forEach(c => {
+                    const type = c.fields?.customerType?.stringValue || 'רגיל';
+                    types.add(type);
+                });
+
+                const select = document.getElementById('filterCustomerType');
+                select.innerHTML = '<option value="all">הכל</option>';
+                types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading customer types:', error);
+            }
+
+            document.getElementById('filterRedemptionStatus').value = 'all';
+            modal.classList.add('active');
+        }
+
+        function closeFilterModal() {
+            document.getElementById('filterModal').classList.remove('active');
+        }
+
+        // סינון לקוחות לפי הפילטרים שנבחרו
+        function filterCustomers(customers, typeFilter, statusFilter) {
+            return customers.filter(customer => {
+                const customerType = customer.fields?.customerType?.stringValue || 'רגיל';
+                const totalItems = parseInt(customer.fields?.totalItems?.integerValue || '0');
+                const usedItems = parseInt(customer.fields?.usedItems?.integerValue || '0');
+
+                // סינון לפי סיווג
+                if (typeFilter !== 'all' && customerType !== typeFilter) return false;
+
+                // סינון לפי סטטוס מימוש
+                if (statusFilter === 'redeemed' && usedItems === 0) return false;
+                if (statusFilter === 'not_redeemed' && usedItems > 0) return false;
+                if (statusFilter === 'partial' && (usedItems === 0 || usedItems >= totalItems)) return false;
+
+                return true;
+            });
+        }
+
+        // ביצוע הפעולה שנבחרה
+        async function executeFilterAction() {
+            const typeFilter = document.getElementById('filterCustomerType').value;
+            const statusFilter = document.getElementById('filterRedemptionStatus').value;
+            closeFilterModal();
+
+            if (currentFilterAction === 'export') {
+                await exportFilteredCustomers(typeFilter, statusFilter);
+            } else if (currentFilterAction === 'delete') {
+                await deleteFilteredCustomers(typeFilter, statusFilter);
+            }
+        }
+
+        // ייצוא רשימת לקוחות מסוננת - באותו פורמט כמו הקליטה
+        async function exportFilteredCustomers(typeFilter, statusFilter) {
+            try {
+                showSuccess('מכין קובץ ייצוא... אנא המתן');
+                const allCustomers = await fetchAllCustomers();
+                const filtered = filterCustomers(allCustomers, typeFilter, statusFilter);
+
+                if (filtered.length === 0) {
+                    showError('לא נמצאו לקוחות התואמים את הסינון');
+                    return;
+                }
+
+                // בניית נתונים באותו פורמט כמו קובץ הקליטה
+                const data = [['מזהה', 'שם', 'כתובת', 'כמות פריטים', 'טלפון 1', 'טלפון 2', 'סיווג']];
+
+                filtered.forEach(customer => {
+                    data.push([
+                        customer.fields?.id?.stringValue || '',
+                        customer.fields?.name?.stringValue || '',
+                        customer.fields?.address?.stringValue || '',
+                        parseInt(customer.fields?.totalItems?.integerValue || '0'),
+                        customer.fields?.phone1?.stringValue || '',
+                        customer.fields?.phone2?.stringValue || '',
+                        customer.fields?.customerType?.stringValue || 'רגיל'
+                    ]);
+                });
+
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(data);
+
+                // סגנון כותרות
+                const headerStyle = {
+                    font: { name: 'Arial', sz: 12, bold: true, color: { rgb: "FFFFFF" } },
+                    fill: { patternType: "solid", fgColor: { rgb: "4472C4" } },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+
+                // החלת סגנון על כותרות
+                for (let c = 0; c < 7; c++) {
+                    const cell = XLSX.utils.encode_cell({ r: 0, c: c });
+                    if (ws[cell]) ws[cell].s = headerStyle;
+                }
+
+                ws['!cols'] = [
+                    { width: 12 },  // מזהה
+                    { width: 20 },  // שם
+                    { width: 25 },  // כתובת
+                    { width: 12 },  // כמות
+                    { width: 15 },  // טלפון 1
+                    { width: 15 },  // טלפון 2
+                    { width: 12 }   // סיווג
+                ];
+
+                XLSX.utils.book_append_sheet(wb, ws, "לקוחות");
+
+                let filterDesc = '';
+                if (typeFilter !== 'all') filterDesc += `_סיווג_${typeFilter}`;
+                if (statusFilter !== 'all') {
+                    const statusNames = { redeemed: 'מימשו', not_redeemed: 'לא_מימשו', partial: 'חלקית' };
+                    filterDesc += `_${statusNames[statusFilter]}`;
+                }
+
+                XLSX.writeFile(wb, `רשימת_לקוחות${filterDesc}_${new Date().toLocaleDateString('he-IL')}.xlsx`);
+                showSuccess(`יוצאו ${filtered.length} לקוחות בהצלחה`);
+            } catch (error) {
+                console.error('Error exporting customers:', error);
+                showError('שגיאה בייצוא רשימת הלקוחות');
+            }
+        }
+
+        // מחיקת לקוחות מסוננת
+        async function deleteFilteredCustomers(typeFilter, statusFilter) {
+            try {
+                showSuccess('בודק לקוחות לפי הסינון...');
+                const allCustomers = await fetchAllCustomers();
+                const filtered = filterCustomers(allCustomers, typeFilter, statusFilter);
+
+                if (filtered.length === 0) {
+                    showError('לא נמצאו לקוחות התואמים את הסינון');
+                    return;
+                }
+
+                // אישור ראשון
+                let filterText = '';
+                if (typeFilter !== 'all') filterText += ` סיווג: ${typeFilter}`;
+                if (statusFilter !== 'all') {
+                    const statusNames = { redeemed: 'מימשו', not_redeemed: 'לא מימשו', partial: 'מימשו חלקית' };
+                    filterText += ` סטטוס: ${statusNames[statusFilter]}`;
+                }
+
+                if (!confirm(`נמצאו ${filtered.length} לקוחות התואמים את הסינון (${filterText.trim()}).\nהאם למחוק אותם ואת כל המימושים שלהם?`)) {
+                    return;
+                }
+
+                // אישור כפול
+                if (!confirm(`אישור סופי: אתה עומד למחוק ${filtered.length} לקוחות וכל המימושים שלהם.\nפעולה זו בלתי הפיכה!\nהאם להמשיך?`)) {
+                    return;
+                }
+
+                showSuccess(`מוחק ${filtered.length} לקוחות... אנא המתן`);
+
+                let deletedCustomers = 0;
+                let deletedRedemptions = 0;
+
+                for (const customer of filtered) {
+                    const docId = customer.name.split('/').pop();
+                    const customerId = customer.fields?.id?.stringValue || docId;
+
+                    // מחיקת מימושים של הלקוח
+                    const redemptionsQuery = {
+                        structuredQuery: {
+                            from: [{ collectionId: 'redemptions' }],
+                            where: {
+                                fieldFilter: {
+                                    field: { fieldPath: 'customerId' },
+                                    op: 'EQUAL',
+                                    value: { stringValue: customerId }
+                                }
+                            }
+                        }
+                    };
+
+                    const redemptionsResponse = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(redemptionsQuery)
+                    });
+                    const redemptionsResults = await redemptionsResponse.json();
+                    const customerRedemptions = redemptionsResults.filter(r => r.document);
+
+                    for (const redemption of customerRedemptions) {
+                        const redemptionDocId = redemption.document.name.split('/').pop();
+                        await fetch(`${FIRESTORE_URL}/redemptions/${redemptionDocId}`, { method: 'DELETE' });
+                        deletedRedemptions++;
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+
+                    // מחיקת הלקוח
+                    await fetch(`${FIRESTORE_URL}/customers/${docId}`, { method: 'DELETE' });
+                    deletedCustomers++;
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    // עדכון התקדמות
+                    if (deletedCustomers % 10 === 0) {
+                        showSuccess(`נמחקו ${deletedCustomers} מתוך ${filtered.length} לקוחות...`);
+                    }
+                }
+
+                showSuccess(`נמחקו ${deletedCustomers} לקוחות ו-${deletedRedemptions} מימושים`);
+            } catch (error) {
+                console.error('Error deleting customers:', error);
+                showError('שגיאה במחיקת לקוחות');
+            }
+        }
+
+        // מחיקת הכל - כל הלקוחות וכל המימושים
+        async function deleteAllData() {
+            // אישור ראשון
+            if (!confirm('אתה עומד למחוק את כל הלקוחות ואת כל המימושים.\nהמערכת תתאפס לחלוטין!\nהאם להמשיך?')) {
+                return;
+            }
+
+            // אישור כפול
+            if (!confirm('אישור סופי: כל הנתונים יימחקו ולא ניתן יהיה לשחזר אותם.\nהאם אתה בטוח?')) {
+                return;
+            }
+
+            try {
+                showSuccess('מוחק את כל הנתונים... אנא המתן');
+
+                // משיכת כל הלקוחות
+                const customers = await fetchAllCustomers();
+
+                // משיכת כל המימושים
+                const redemptionsQuery = {
+                    structuredQuery: {
+                        from: [{ collectionId: 'redemptions' }],
+                        orderBy: [{ field: { fieldPath: "__name__" } }],
+                        limit: 1000
+                    }
+                };
+                let response = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(redemptionsQuery)
+                });
+                let results = await response.json();
+                let redemptions = results.filter(r => r.document).map(r => r.document);
+
+                // דפדוף מימושים
+                if (redemptions.length === 1000) {
+                    const lastId = redemptions[redemptions.length - 1].name.split('/').pop();
+                    const nextQuery = {
+                        structuredQuery: {
+                            from: [{ collectionId: 'redemptions' }],
+                            orderBy: [{ field: { fieldPath: "__name__" } }],
+                            startAt: {
+                                values: [{ referenceValue: `projects/${FIREBASE_PROJECT}/databases/(default)/documents/redemptions/${lastId}` }]
+                            },
+                            limit: 1000
+                        }
+                    };
+                    const moreResponse = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(nextQuery)
+                    });
+                    const moreResults = await moreResponse.json();
+                    const more = moreResults.filter(r => r.document).map(r => r.document);
+                    if (more.length > 0 && more[0].name === redemptions[redemptions.length - 1].name) {
+                        more.shift();
+                    }
+                    redemptions = [...redemptions, ...more];
+                }
+
+                const totalItems = customers.length + redemptions.length;
+                let deletedCount = 0;
+
+                // מחיקת כל המימושים
+                for (const redemption of redemptions) {
+                    const docId = redemption.name.split('/').pop();
+                    await fetch(`${FIRESTORE_URL}/redemptions/${docId}`, { method: 'DELETE' });
+                    deletedCount++;
+                    if (deletedCount % 20 === 0) {
+                        showSuccess(`נמחקו ${deletedCount} מתוך ${totalItems} רשומות...`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+
+                // מחיקת כל הלקוחות
+                for (const customer of customers) {
+                    const docId = customer.name.split('/').pop();
+                    await fetch(`${FIRESTORE_URL}/customers/${docId}`, { method: 'DELETE' });
+                    deletedCount++;
+                    if (deletedCount % 20 === 0) {
+                        showSuccess(`נמחקו ${deletedCount} מתוך ${totalItems} רשומות...`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+
+                showSuccess(`הושלם! נמחקו ${customers.length} לקוחות ו-${redemptions.length} מימושים. המערכת מאופסת.`);
+            } catch (error) {
+                console.error('Error deleting all data:', error);
+                showError('שגיאה במחיקת הנתונים');
+            }
+        }
+
         // הגדרת הפונקציות כגלובליות בחלון
         window.handleLogin = handleLogin;
         window.handleSearch = handleSearch;
@@ -1273,6 +1736,10 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
         window.handleFileUpload = handleFileUpload;
         window.exportToExcel = exportToExcel;
         window.handleLogout = handleLogout;
+        window.openFilterModal = openFilterModal;
+        window.closeFilterModal = closeFilterModal;
+        window.executeFilterAction = executeFilterAction;
+        window.deleteAllData = deleteAllData;
     </script>
 </body>
 </html>
