@@ -295,6 +295,9 @@
                 <button onclick="deleteOrphanedRedemptions()" class="danger">
                     נקה מימושים יתומים
                 </button>
+                <button onclick="showClassificationSummary()" class="secondary">
+                    סיכום סיווגים
+                </button>
                 <button onclick="handleLogout()" class="secondary">
                     החלפת משמרת
                 </button>
@@ -1731,6 +1734,33 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
             }
         }
 
+        // סיכום סיווגים - הצגת כמות לקוחות לפי סיווג
+        async function showClassificationSummary() {
+            try {
+                showSuccess('טוען נתוני לקוחות...');
+                const customers = await fetchAllCustomers();
+
+                const summary = {};
+                customers.forEach(c => {
+                    const type = c.fields?.customerType?.stringValue || 'רגיל';
+                    if (!summary[type]) summary[type] = 0;
+                    summary[type]++;
+                });
+
+                const lines = [`סה"כ לקוחות: ${customers.length}`, ''];
+                const sorted = Object.entries(summary).sort((a, b) => b[1] - a[1]);
+                sorted.forEach(([type, count]) => {
+                    lines.push(`${type}: ${count} לקוחות`);
+                });
+
+                alert(lines.join('\n'));
+                showSuccess('');
+            } catch (error) {
+                console.error('Error loading classification summary:', error);
+                showError('שגיאה בטעינת סיכום סיווגים');
+            }
+        }
+
         // ניקוי מימושים יתומים - מימושים ששייכים ללקוחות שכבר לא קיימים
         async function deleteOrphanedRedemptions() {
             try {
@@ -1829,6 +1859,7 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
         window.executeFilterAction = executeFilterAction;
         window.deleteAllData = deleteAllData;
         window.deleteOrphanedRedemptions = deleteOrphanedRedemptions;
+        window.showClassificationSummary = showClassificationSummary;
     </script>
 </body>
 </html>
