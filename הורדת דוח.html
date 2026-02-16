@@ -1588,9 +1588,8 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
 
                 for (const customer of filtered) {
                     const docId = customer.name.split('/').pop();
-                    const customerId = customer.fields?.id?.stringValue || docId;
 
-                    // מחיקת מימושים של הלקוח
+                    // מחיקת מימושים של הלקוח - חיפוש לפי Document ID כי זה מה שנשמר במימושים
                     const redemptionsQuery = {
                         structuredQuery: {
                             from: [{ collectionId: 'redemptions' }],
@@ -1598,7 +1597,7 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
                                 fieldFilter: {
                                     field: { fieldPath: 'customerId' },
                                     op: 'EQUAL',
-                                    value: { stringValue: customerId }
+                                    value: { stringValue: docId }
                                 }
                             }
                         }
