@@ -292,6 +292,9 @@
                 <button onclick="deleteAllData()" class="danger">
                     מחק הכל
                 </button>
+                <button onclick="deleteOrphanedRedemptions()" class="danger">
+                    נקה מימושים יתומים
+                </button>
                 <button onclick="handleLogout()" class="secondary">
                     החלפת משמרת
                 </button>
@@ -1728,6 +1731,92 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
             }
         }
 
+        // ניקוי מימושים יתומים - מימושים ששייכים ללקוחות שכבר לא קיימים
+        async function deleteOrphanedRedemptions() {
+            try {
+                showSuccess('בודק מימושים יתומים... אנא המתן');
+
+                // משיכת כל הלקוחות
+                const customers = await fetchAllCustomers();
+                const customerDocIds = new Set(customers.map(c => c.name.split('/').pop()));
+
+                // משיכת כל המימושים
+                const redemptionsQuery = {
+                    structuredQuery: {
+                        from: [{ collectionId: 'redemptions' }],
+                        orderBy: [{ field: { fieldPath: "__name__" } }],
+                        limit: 1000
+                    }
+                };
+                let response = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(redemptionsQuery)
+                });
+                let results = await response.json();
+                let redemptions = results.filter(r => r.document).map(r => r.document);
+
+                // דפדוף מימושים
+                if (redemptions.length === 1000) {
+                    const lastId = redemptions[redemptions.length - 1].name.split('/').pop();
+                    const nextQuery = {
+                        structuredQuery: {
+                            from: [{ collectionId: 'redemptions' }],
+                            orderBy: [{ field: { fieldPath: "__name__" } }],
+                            startAt: {
+                                values: [{ referenceValue: `projects/${FIREBASE_PROJECT}/databases/(default)/documents/redemptions/${lastId}` }]
+                            },
+                            limit: 1000
+                        }
+                    };
+                    const moreResponse = await fetch(`${FIRESTORE_URL}:runQuery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(nextQuery)
+                    });
+                    const moreResults = await moreResponse.json();
+                    const more = moreResults.filter(r => r.document).map(r => r.document);
+                    if (more.length > 0 && more[0].name === redemptions[redemptions.length - 1].name) {
+                        more.shift();
+                    }
+                    redemptions = [...redemptions, ...more];
+                }
+
+                // סינון מימושים יתומים - כאלה שה-customerId שלהם לא תואם אף לקוח קיים
+                const orphaned = redemptions.filter(r => {
+                    const customerId = r.fields?.customerId?.stringValue;
+                    return !customerId || !customerDocIds.has(customerId);
+                });
+
+                if (orphaned.length === 0) {
+                    showSuccess('לא נמצאו מימושים יתומים - הכל נקי!');
+                    return;
+                }
+
+                if (!confirm(`נמצאו ${orphaned.length} מימושים יתומים (מתוך ${redemptions.length} סה"כ) ששייכים ללקוחות שכבר לא קיימים.\nהאם למחוק אותם?`)) {
+                    return;
+                }
+
+                showSuccess(`מוחק ${orphaned.length} מימושים יתומים... אנא המתן`);
+                let deleted = 0;
+
+                for (const redemption of orphaned) {
+                    const docId = redemption.name.split('/').pop();
+                    await fetch(`${FIRESTORE_URL}/redemptions/${docId}`, { method: 'DELETE' });
+                    deleted++;
+                    if (deleted % 20 === 0) {
+                        showSuccess(`נמחקו ${deleted} מתוך ${orphaned.length} מימושים יתומים...`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+
+                showSuccess(`הושלם! נמחקו ${deleted} מימושים יתומים.`);
+            } catch (error) {
+                console.error('Error deleting orphaned redemptions:', error);
+                showError('שגיאה בניקוי מימושים יתומים');
+            }
+        }
+
         // הגדרת הפונקציות כגלובליות בחלון
         window.handleLogin = handleLogin;
         window.handleSearch = handleSearch;
@@ -1739,6 +1828,7 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
         window.closeFilterModal = closeFilterModal;
         window.executeFilterAction = executeFilterAction;
         window.deleteAllData = deleteAllData;
+        window.deleteOrphanedRedemptions = deleteOrphanedRedemptions;
     </script>
 </body>
 </html>
