@@ -1734,26 +1734,33 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
             }
         }
 
-        // סיכום סיווגים - הצגת כמות לקוחות לפי סיווג
+        // סיכום סיווגים - זיהוי לקוחות עם כמה סיווגים (רשומות כפולות)
         async function showClassificationSummary() {
             try {
                 showSuccess('טוען נתוני לקוחות...');
                 const customers = await fetchAllCustomers();
 
-                const summary = {};
+                // קיבוץ לפי מזהה לקוח - בדיקה אם אותו לקוח מופיע עם סיווגים שונים
+                const byId = {};
                 customers.forEach(c => {
+                    const id = c.fields?.id?.stringValue || '';
                     const type = c.fields?.customerType?.stringValue || 'רגיל';
-                    if (!summary[type]) summary[type] = 0;
-                    summary[type]++;
+                    const name = c.fields?.name?.stringValue || '';
+                    if (!byId[id]) byId[id] = { name, types: new Set() };
+                    byId[id].types.add(type);
                 });
 
-                const lines = [`סה"כ לקוחות: ${customers.length}`, ''];
-                const sorted = Object.entries(summary).sort((a, b) => b[1] - a[1]);
-                sorted.forEach(([type, count]) => {
-                    lines.push(`${type}: ${count} לקוחות`);
-                });
+                const duplicates = Object.entries(byId).filter(([, v]) => v.types.size > 1);
 
-                alert(lines.join('\n'));
+                if (duplicates.length === 0) {
+                    alert(`סה"כ ${customers.length} לקוחות.\nלא נמצאו לקוחות עם כמה סיווגים שונים.`);
+                } else {
+                    const lines = [`נמצאו ${duplicates.length} לקוחות עם כמה סיווגים:`, ''];
+                    duplicates.forEach(([id, info]) => {
+                        lines.push(`${info.name} (${id}): ${[...info.types].join(', ')}`);
+                    });
+                    alert(lines.join('\n'));
+                }
                 showSuccess('');
             } catch (error) {
                 console.error('Error loading classification summary:', error);
