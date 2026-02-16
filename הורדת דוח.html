@@ -1496,7 +1496,7 @@ console.log(`📊 סיכום נתונים: ${customers.length} לקוחות ו-$
                         customer.fields?.id?.stringValue || '',
                         customer.fields?.name?.stringValue || '',
                         customer.fields?.address?.stringValue || '',
-                        parseInt(customer.fields?.totalItems?.integerValue || '0'),
+                        parseInt(customer.fields?.totalItems?.integerValue || '0') - parseInt(customer.fields?.usedItems?.integerValue || '0'),
                         customer.fields?.phone1?.stringValue || '',
                         customer.fields?.phone2?.stringValue || '',
                         customer.fields?.customerType?.stringValue || 'רגיל'
